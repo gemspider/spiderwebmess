@@ -1,0 +1,16 @@
+node_modules/
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+
+.env.local
+.env*.local
+
+.vercel/
+
+.DS_Store
+.idea/
+.vscode/
+
+# public/data/ is intentionally committed — it is the app's only data source.

@@ -1,0 +1,9 @@
+{
+  "generated_at": "2026-09-29T11:45:33Z",
+  "source": "gem_build/local-dev (community 054 dump)",
+  "community_id": 54,
+  "srid": 4326,
+  "anonymised": 1,
+  "layers": ["schaechte","haltungen","wartungen","reinigungen"],
+  "details": ["schaechte","haltungen","wartungen","reinigungen"]
+}

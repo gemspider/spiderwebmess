@@ -1,0 +1,70 @@
+# Build and test.
+#
+# Deployment is handled by Vercel's Git integration, not by this workflow — it watches
+# the repo and builds on push. This runs in parallel and does not gate the deploy.
+#
+# The gate that matters happens before the push, not after it: the data snapshot is
+# public the moment it lands in this repo, so it is checked and anonymised upstream.
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Data is anonymised
+        # Cheap guard against publishing a snapshot taken with anonymisation disabled.
+        # Personal fields are replaced with placeholders before the data ever gets here.
+        run: |
+          set -euo pipefail
+          grep -q '"anonymised": *1' public/data/manifest.json \
+            || { echo "::error::snapshot is not anonymised"; exit 1; }
+          echo "Snapshot is anonymised."
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run test
+      - run: npm run build
+
+      - name: Export is static and complete
+        run: |
+          set -euo pipefail
+
+          [ -d out ] || { echo "::error::no out/ — output: 'export' missing"; exit 1; }
+          [ -d out/api ] && { echo "::error::out/api/ exists in a static export"; exit 1; }
+
+          # Without this the service worker precaches nothing and offline breaks silently.
+          [ -f out/sw-assets.json ] \
+            || { echo "::error::out/sw-assets.json missing — postbuild did not run"; exit 1; }
+
+          for f in out/index.html out/login/index.html out/manifest.webmanifest out/sw.js; do
+            [ -f "$f" ] || { echo "::error::missing $f"; exit 1; }
+          done
+
+          for f in schaechte haltungen wartungen reinigungen; do
+            [ -s "out/data/layers/$f.json" ]  || { echo "::error::missing out/data/layers/$f.json"; exit 1; }
+            [ -s "out/data/details/$f.json" ] || { echo "::error::missing out/data/details/$f.json"; exit 1; }
+          done
+
+          echo "Export OK — $(du -sh out | cut -f1)"
