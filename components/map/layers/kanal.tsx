@@ -20,6 +20,7 @@ import { pinIcon } from '@/lib/mapSymbols'
 import { fetchWFS } from '@/lib/geoserver'
 import { config } from '@/lib/config'
 import MarkerClusterGroup from '../MarkerClusterGroup'
+import { useVisibleFeatures, MIN_ZOOM } from './useVisibleFeatures'
 import type { FeatureCollection, LineString, Point } from 'geojson'
 
 const LAYERS = config.kanal.geoserverLayerOptions
@@ -34,8 +35,13 @@ function levelColor(value: number | string | null | undefined): string {
 // ─── Haltung layer (pipe segments) ────────────────────────────────────────────
 
 export function HaltungLayer() {
-  const { selectedFeatureId, selectedFeatureType, layerVisibility, selectFeature } = useMapStore()
-  const visible = layerVisibility['kanal-haltungen'] ?? true
+  // One subscription per field: a bare useMapStore() re-renders on any store change,
+  // which for these layers means reconciling thousands of children when the user types
+  // in the search box.
+  const selectedFeatureId = useMapStore(s => s.selectedFeatureId)
+  const selectedFeatureType = useMapStore(s => s.selectedFeatureType)
+  const selectFeature = useMapStore(s => s.selectFeature)
+  const visible = useMapStore(s => s.layerVisibility['kanal-haltungen'] ?? true)
 
   const { data } = useQuery<FeatureCollection | null>({
     queryKey: ['wfs', 'kanal-haltungen'],
@@ -43,11 +49,14 @@ export function HaltungLayer() {
     enabled:  visible,
   })
 
+  // Only the features in view — see useVisibleFeatures for why.
+  const features = useVisibleFeatures(visible ? data : null, MIN_ZOOM.haltungen)
+
   if (!visible || !data) return null
 
   return (
     <>
-      {data.features.map(f => {
+      {features.map(f => {
         const id       = String(f.properties?.id ?? f.id)
         const gsk      = f.properties?.gesamtschadensklasse
         const color    = levelColor(gsk)
@@ -83,8 +92,13 @@ export function HaltungLayer() {
 // ─── Schacht layer (manholes) ─────────────────────────────────────────────────
 
 export function SchachtLayer() {
-  const { selectedFeatureId, selectedFeatureType, layerVisibility, selectFeature } = useMapStore()
-  const visible = layerVisibility['kanal-schaechte'] ?? true
+  // One subscription per field: a bare useMapStore() re-renders on any store change,
+  // which for these layers means reconciling thousands of children when the user types
+  // in the search box.
+  const selectedFeatureId = useMapStore(s => s.selectedFeatureId)
+  const selectedFeatureType = useMapStore(s => s.selectedFeatureType)
+  const selectFeature = useMapStore(s => s.selectFeature)
+  const visible = useMapStore(s => s.layerVisibility['kanal-schaechte'] ?? true)
 
   const { data } = useQuery<FeatureCollection | null>({
     queryKey: ['wfs', 'kanal-schaechte'],
@@ -92,11 +106,13 @@ export function SchachtLayer() {
     enabled:  visible,
   })
 
+  const features = useVisibleFeatures(visible ? data : null, MIN_ZOOM.schaechte)
+
   if (!visible || !data) return null
 
   return (
     <>
-      {data.features.map(f => {
+      {features.map(f => {
         const id       = String(f.properties?.id ?? f.id)
         const sbz      = f.properties?.sbz
         const color    = levelColor(sbz)
@@ -146,8 +162,13 @@ function WartungSubLayer({
   color: string
   featureType: string
 }) {
-  const { selectedFeatureId, selectedFeatureType, layerVisibility, selectFeature } = useMapStore()
-  const visible = layerVisibility[layerId] ?? true
+  // One subscription per field: a bare useMapStore() re-renders on any store change,
+  // which for these layers means reconciling thousands of children when the user types
+  // in the search box.
+  const selectedFeatureId = useMapStore(s => s.selectedFeatureId)
+  const selectedFeatureType = useMapStore(s => s.selectedFeatureType)
+  const selectFeature = useMapStore(s => s.selectFeature)
+  const visible = useMapStore(s => s.layerVisibility[layerId] ?? true)
 
   // All 4 sub-layers share the same cache key — only one WFS request is made
   const { data } = useQuery<FeatureCollection | null>({
@@ -156,9 +177,11 @@ function WartungSubLayer({
     enabled:  visible,
   })
 
+  const features = useVisibleFeatures(visible ? data : null, MIN_ZOOM.wartungen)
+
   if (!visible || !data) return null
 
-  const filtered = data.features.filter(
+  const filtered = features.filter(
     f => f.properties?.typ === typ && Number(f.properties?.status) === status,
   )
 
@@ -204,8 +227,13 @@ export function WartungLayer() {
 // ─── Reinigung layer (cleaning segments) ─────────────────────────────────────
 
 export function ReinigungLayer() {
-  const { selectedFeatureId, selectedFeatureType, layerVisibility, selectFeature } = useMapStore()
-  const visible = layerVisibility['kanal-reinigungen'] ?? false
+  // One subscription per field: a bare useMapStore() re-renders on any store change,
+  // which for these layers means reconciling thousands of children when the user types
+  // in the search box.
+  const selectedFeatureId = useMapStore(s => s.selectedFeatureId)
+  const selectedFeatureType = useMapStore(s => s.selectedFeatureType)
+  const selectFeature = useMapStore(s => s.selectFeature)
+  const visible = useMapStore(s => s.layerVisibility['kanal-reinigungen'] ?? false)
 
   const { data } = useQuery<FeatureCollection | null>({
     queryKey: ['wfs', 'kanal-reinigungen'],
@@ -213,12 +241,14 @@ export function ReinigungLayer() {
     enabled:  visible,
   })
 
+  const features = useVisibleFeatures(visible ? data : null, MIN_ZOOM.reinigungen)
+
   if (!visible || !data) return null
 
   const color    = LEVEL_COLORS[1]
   return (
     <>
-      {data.features.map(f => {
+      {features.map(f => {
         const id       = String(f.properties?.id ?? f.id)
         const geom     = f.geometry as LineString
         const coords   = geom.coordinates.map(([lng, lat]) => [lat, lng] as [number, number])

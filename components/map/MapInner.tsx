@@ -12,6 +12,11 @@ import MapResizeHandler from './MapResizeHandler'
 
 const MAP_CENTER = config.mapOptions.coordinate
 const MAP_ZOOM   = config.mapOptions.zoom
+// config defines these but nothing applied them, so the map could zoom out past the
+// point where every layer's minimum zoom gates it off — leaving a basemap with no
+// network on it, which reads as the data having failed to load.
+const MAP_MIN_ZOOM = config.mapOptions.minZoom
+const MAP_MAX_ZOOM = config.mapOptions.maxZoom
 
 // Fix Leaflet default icon paths (broken in webpack builds)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -26,7 +31,8 @@ L.Icon.Default.mergeOptions({
 
 function FlyToHandler() {
   const map = useMap()
-  const { flyTo, setFlyTo } = useMapStore()
+  const flyTo = useMapStore(s => s.flyTo)
+  const setFlyTo = useMapStore(s => s.setFlyTo)
   useEffect(() => {
     if (!flyTo) return
     map.flyTo(flyTo, 18, { animate: true, duration: 1.2 })
@@ -38,7 +44,7 @@ function FlyToHandler() {
 // ─── Click hint ───────────────────────────────────────────────────────────────
 
 function MapHint() {
-  const { selectedFeatureId } = useMapStore()
+  const selectedFeatureId = useMapStore(s => s.selectedFeatureId)
   if (selectedFeatureId) return null
   return (
     <div className="absolute bottom-14 right-3 z-[900] bg-white/95 rounded-full px-3 py-1.5 text-xs text-ink-dim border border-border shadow-sm pointer-events-none">
@@ -70,7 +76,13 @@ function useCollapseSidebarOnPhones() {
 // ─── Main map (rendered without SSR via MapView) ──────────────────────────────
 
 export default function MapInner() {
-  const { baseTile, selectFeature, activeModule } = useMapStore()
+  // Selective subscriptions. A bare useMapStore() re-renders this component on any
+  // store change, and it renders KanalLayers — so a keystroke in the search box
+  // reconciled every feature on the map. Measured at 114 ms of blocked main thread
+  // per character on a throttled phone.
+  const baseTile = useMapStore(s => s.baseTile)
+  const selectFeature = useMapStore(s => s.selectFeature)
+  const activeModule = useMapStore(s => s.activeModule)
   const tile = TILES[baseTile]
 
   useCollapseSidebarOnPhones()
@@ -80,6 +92,8 @@ export default function MapInner() {
       <MapContainer
         center={MAP_CENTER}
         zoom={MAP_ZOOM}
+        minZoom={MAP_MIN_ZOOM}
+        maxZoom={MAP_MAX_ZOOM}
         className="w-full h-full"
         zoomControl={false}
         attributionControl
