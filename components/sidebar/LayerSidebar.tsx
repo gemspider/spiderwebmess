@@ -282,8 +282,19 @@ export function LayerSidebar() {
   return (
     <aside
       className={cn(
-        'h-full bg-surface-soft border-r border-border flex flex-col flex-shrink-0 overflow-hidden transition-all duration-200 ease-in-out',
-        sidebarOpen ? 'w-[280px] opacity-100' : 'w-0 opacity-0 pointer-events-none',
+        'h-full bg-surface-soft border-r border-border flex flex-col overflow-hidden transition-all duration-200 ease-in-out',
+
+        // Phones: slide over the map. As a flex sibling this panel is 280px of a 390px
+        // screen, which leaves the map a 110px strip — it reads as the map being broken
+        // rather than as a panel being open.
+        'max-md:absolute max-md:inset-y-0 max-md:left-0 max-md:z-[1000] max-md:w-[280px] max-md:shadow-2xl',
+        sidebarOpen
+          ? 'max-md:translate-x-0'
+          : 'max-md:-translate-x-full max-md:pointer-events-none',
+
+        // Desktop: keep pushing the map aside — there is room for both.
+        'md:flex-shrink-0 md:translate-x-0',
+        sidebarOpen ? 'md:w-[280px] md:opacity-100' : 'md:w-0 md:opacity-0 md:pointer-events-none',
       )}
     >
       {/* Header */}
