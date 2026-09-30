@@ -20,6 +20,7 @@
 import { applyAliases } from './fieldAliases'
 import { getOverlay, isDeleted, mergeOverlay, markDeleted, nextCreatedId } from './demoStore'
 import { loadDetails, loadLayerIndex } from './snapshot'
+import { getTask, taskAsFeature } from './demoTasks'
 import type { DetailTable, LayerName } from './snapshot'
 
 export class ApiError extends Error {
@@ -56,6 +57,16 @@ async function buildRow(table: string, id: string): Promise<Record<string, unkno
     loadDetails(source.detail),
     loadLayerIndex(source.layer),
   ])
+
+  // A task raised in this demo has no snapshot row at all; it is only in localStorage.
+  // Serving it from here means FeaturePanel, the popup and the tabs all reach it
+  // through the path they already use.
+  if (table === 'wartungen' && Number(id) < 0) {
+    const task = getTask(id)
+    if (!task) return null
+    const props = taskAsFeature(task).properties as Record<string, unknown>
+    return { ...props, ...(getOverlay(table, id) ?? {}), id: Number(id) }
+  }
 
   const base = details[id]
   const view = layerIndex.get(id)

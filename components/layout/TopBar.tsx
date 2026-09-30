@@ -104,7 +104,10 @@ export function TopBar() {
                   : 'text-white/50 hover:text-white/80',
               )}
             >
-              {m.icon} {m.label}
+              <span className="flex items-center gap-1.5">
+                <m.icon className="h-3.5 w-3.5" />
+                {m.label}
+              </span>
             </button>
           ))}
         </nav>

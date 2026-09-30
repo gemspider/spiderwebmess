@@ -7,6 +7,12 @@
 //
 // Nothing here leaves the browser. Every access is wrapped — a private window or
 // blocked site data makes localStorage throw rather than return null.
+//
+// Tasks *created* in the demo live in lib/demoTasks (a whole feature with geometry, not
+// a patch onto an existing row). resetDemo() clears both, so there is one way back to
+// the snapshot rather than two half-ways.
+
+import { resetTasks } from './demoTasks'
 
 const KEY = 'spiderweb:demo-overlay'
 
@@ -97,4 +103,5 @@ export function resetDemo(): void {
   } catch {
     // nothing to do — memory is already cleared
   }
+  resetTasks()
 }

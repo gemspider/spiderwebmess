@@ -5,7 +5,8 @@
  * Each layer:
  *   1. Fetches GeoJSON from GeoServer via React Query (cached, shared)
  *   2. Renders Leaflet elements colored by condition field (GSK / SBZ)
- *   3. On click: calls selectFeature(id, 'kanal', type) on the Zustand store
+ *   3. On click: opens the shared NetworkPopup; 'Details öffnen' there selects
+ *      the feature and opens the panel
  *
  * When real GeoServer data is available, replace the placeholder useQuery
  * calls with fetchWFS() from lib/geoserver.ts.
@@ -15,21 +16,29 @@ import { useQuery } from '@tanstack/react-query'
 import { CircleMarker, Polyline, Marker } from 'react-leaflet'
 import React from 'react'
 import { useMapStore } from '@/lib/store/mapStore'
-import { LEVEL_COLORS } from '@/lib/registry'
-import { pinIcon } from '@/lib/mapSymbols'
+import { useLevelColors, useLayerColor, useLayerSize, useLayerNoClass } from '@/lib/store/styleStore'
+import { pinIcon, labelIcon } from '@/lib/mapSymbols'
 import { fetchWFS } from '@/lib/geoserver'
 import { config } from '@/lib/config'
 import MarkerClusterGroup from '../MarkerClusterGroup'
-import { useVisibleFeatures, MIN_ZOOM } from './useVisibleFeatures'
+import { WartungPopup, type WartungProps } from '../WartungPopup'
+import { useVisibleFeatures, useZoom, zoomWeight, LABEL_ZOOM, MIN_ZOOM } from './useVisibleFeatures'
 import type { FeatureCollection, LineString, Point } from 'geojson'
 
 const LAYERS = config.kanal.geoserverLayerOptions
 
 // ─── Helper: GSK / SBZ → color ────────────────────────────────────────────────
+// Colours come from the active ramp, so switching palette repaints the map.
+//
+// `noClass` catches everything outside 1–5: no value at all (4 352 of 5 918 Schächte),
+// and the 6, 7 and 0 codes the data also carries. That is most of what is on the map,
+// so it is a colour the user chooses, not a constant baked in here.
 
-function levelColor(value: number | string | null | undefined): string {
-  const n = Number(value)
-  return LEVEL_COLORS[n] ?? '#94a3b8'
+function levelColorWith(levels: Record<number, string>, noClass: string) {
+  return (value: number | string | null | undefined): string => {
+    const n = Number(value)
+    return levels[n] ?? noClass
+  }
 }
 
 // ─── Haltung layer (pipe segments) ────────────────────────────────────────────
@@ -40,8 +49,11 @@ export function HaltungLayer() {
   // in the search box.
   const selectedFeatureId = useMapStore(s => s.selectedFeatureId)
   const selectedFeatureType = useMapStore(s => s.selectedFeatureType)
-  const selectFeature = useMapStore(s => s.selectFeature)
+  const openPopup = useMapStore(s => s.openPopup)
   const visible = useMapStore(s => s.layerVisibility['kanal-haltungen'] ?? true)
+  const levelColor = levelColorWith(useLevelColors(), useLayerNoClass('kanal-haltungen'))
+  const size = useLayerSize('kanal-haltungen')
+  const zw = zoomWeight(useZoom())
 
   const { data } = useQuery<FeatureCollection | null>({
     queryKey: ['wfs', 'kanal-haltungen'],
@@ -69,16 +81,21 @@ export function HaltungLayer() {
             {selected && (
               <Polyline
                 positions={coords}
-                pathOptions={{ color: '#fff', weight: 14, opacity: 0.7 }}
+                pathOptions={{ color: '#fff', weight: (10 + 4 * size) * zw, opacity: 0.7 }}
               />
             )}
             <Polyline
               positions={coords}
-              pathOptions={{ color, weight: selected ? 5 : 4, opacity: 0.9 }}
+              pathOptions={{ color, weight: (selected ? 5 : 4) * size * zw, opacity: 0.9 }}
               eventHandlers={{
+                // The bubble first, the panel on request — see NetworkPopup.
                 click: e => {
                   e.originalEvent.stopPropagation()
-                  selectFeature(id, 'kanal', 'haltung')
+                  openPopup({
+                    id, type: 'haltung',
+                    latlng: [e.latlng.lat, e.latlng.lng],
+                    props: (f.properties ?? {}) as Record<string, unknown>,
+                  })
                 },
               }}
             />
@@ -97,8 +114,15 @@ export function SchachtLayer() {
   // in the search box.
   const selectedFeatureId = useMapStore(s => s.selectedFeatureId)
   const selectedFeatureType = useMapStore(s => s.selectedFeatureType)
-  const selectFeature = useMapStore(s => s.selectFeature)
+  const openPopup = useMapStore(s => s.openPopup)
   const visible = useMapStore(s => s.layerVisibility['kanal-schaechte'] ?? true)
+  const levelColor = levelColorWith(useLevelColors(), useLayerNoClass('kanal-schaechte'))
+  const size = useLayerSize('kanal-schaechte')
+  // The nodes track the pipes: a line that thickens with zoom over a fixed-size circle
+  // ends up swallowing it.
+  const zoom = useZoom()
+  const zw = zoomWeight(zoom)
+  const showLabels = zoom >= LABEL_ZOOM
 
   const { data } = useQuery<FeatureCollection | null>({
     queryKey: ['wfs', 'kanal-schaechte'],
@@ -120,24 +144,45 @@ export function SchachtLayer() {
         const pos: [number, number] = [geom.coordinates[1], geom.coordinates[0]]
         const selected = selectedFeatureId === id && selectedFeatureType === 'schacht'
 
+        const label = String(f.properties?.name ?? f.properties?.schacht_nr ?? '')
+
+        const open = (e: { originalEvent: MouseEvent }) => {
+          e.originalEvent.stopPropagation()
+          openPopup({
+            id, type: 'schacht',
+            latlng: pos,
+            props: (f.properties ?? {}) as Record<string, unknown>,
+          })
+        }
+
         return (
+          <React.Fragment key={id}>
+          {/* The name tag, at working zoom. It opens the same popup as the dot, and it
+              is the target most clicks actually land on — see labelIcon. */}
+          {showLabels && label && (
+            <Marker
+              position={pos}
+              icon={labelIcon(label, selected)}
+              interactive
+              keyboard={false}
+              eventHandlers={{ click: open }}
+            />
+          )}
           <CircleMarker
-            key={id}
             center={pos}
-            radius={selected ? 9 : 6}
+            radius={(selected ? 9 : 6) * size * zw}
             pathOptions={{
               color:       selected ? '#fff' : color,
+              // The outline does not grow with the fill — at 200% a 2px ring around a
+              // 12px dot still reads as an outline, a 4px one reads as a donut.
               weight:      selected ? 3 : 2,
               fillColor:   color,
               fillOpacity: 0.9,
             }}
-            eventHandlers={{
-              click: e => {
-                e.originalEvent.stopPropagation()
-                selectFeature(id, 'kanal', 'schacht')
-              },
-            }}
+            // The bubble first, the panel on request — see NetworkPopup.
+            eventHandlers={{ click: open }}
           />
+          </React.Fragment>
         )
       })}
     </>
@@ -151,10 +196,22 @@ const COLOR_WART_FERTIG   = '#4ce600'  // green
 const COLOR_KONT_OFFEN    = '#e60000'  // red
 const COLOR_KONT_FERTIG   = '#ffaa00'  // yellow
 
+/**
+ * The same four, by (typ, status), for anything outside the map that has to agree with
+ * it — the feature panel's mini-map drew every task amber, so a task the map showed as
+ * a red "in Bearbeitung" pin was amber the moment you opened it.
+ */
+export function taskColor(typ: unknown, status: unknown): string {
+  const offen = Number(status) !== 1
+  return typ === 'Wartung'
+    ? (offen ? COLOR_WART_OFFEN : COLOR_WART_FERTIG)
+    : (offen ? COLOR_KONT_OFFEN : COLOR_KONT_FERTIG)
+}
+
 // ─── Shared sub-layer: filters from cached WFS by typ + status ────────────────
 
 function WartungSubLayer({
-  layerId, typ, status, color, featureType,
+  layerId, typ, status, color: baseColor, featureType,
 }: {
   layerId: string
   typ: string
@@ -169,6 +226,8 @@ function WartungSubLayer({
   const selectedFeatureType = useMapStore(s => s.selectedFeatureType)
   const selectFeature = useMapStore(s => s.selectFeature)
   const visible = useMapStore(s => s.layerVisibility[layerId] ?? true)
+  const color = useLayerColor(layerId, baseColor)
+  const size = useLayerSize(layerId)
 
   // All 4 sub-layers share the same cache key — only one WFS request is made
   const { data } = useQuery<FeatureCollection | null>({
@@ -186,7 +245,7 @@ function WartungSubLayer({
   )
 
   return (
-    <MarkerClusterGroup>
+    <MarkerClusterGroup color={color}>
       {filtered.map(f => {
         const id       = String(f.properties?.id ?? f.id)
         const geom     = f.geometry as Point
@@ -197,14 +256,15 @@ function WartungSubLayer({
           <Marker
             key={id}
             position={pos}
-            icon={pinIcon(color, undefined, selected)}
+            icon={pinIcon(color, undefined, selected, size)}
             eventHandlers={{
-              click: e => {
-                e.originalEvent.stopPropagation()
-                selectFeature(id, 'kanal', featureType)
-              },
+              // stopPropagation keeps MapInner's background click from clearing the
+              // selection the popup is about to set.
+              click: e => e.originalEvent.stopPropagation(),
             }}
-          />
+          >
+            <WartungPopup props={{ ...(f.properties as WartungProps), id }} />
+          </Marker>
         )
       })}
     </MarkerClusterGroup>
@@ -234,6 +294,10 @@ export function ReinigungLayer() {
   const selectedFeatureType = useMapStore(s => s.selectedFeatureType)
   const selectFeature = useMapStore(s => s.selectFeature)
   const visible = useMapStore(s => s.layerVisibility['kanal-reinigungen'] ?? false)
+  const levels = useLevelColors()
+  const color = useLayerColor('kanal-reinigungen', levels[1])
+  const size = useLayerSize('kanal-reinigungen')
+  const zw = zoomWeight(useZoom())
 
   const { data } = useQuery<FeatureCollection | null>({
     queryKey: ['wfs', 'kanal-reinigungen'],
@@ -245,7 +309,6 @@ export function ReinigungLayer() {
 
   if (!visible || !data) return null
 
-  const color    = LEVEL_COLORS[1]
   return (
     <>
       {features.map(f => {
@@ -259,12 +322,17 @@ export function ReinigungLayer() {
             {selected && (
               <Polyline
                 positions={coords}
-                pathOptions={{ color: '#fff', weight: 14, opacity: 0.7 }}
+                pathOptions={{ color: '#fff', weight: (10 + 4 * size) * zw, opacity: 0.7 }}
               />
             )}
             <Polyline
               positions={coords}
-              pathOptions={{ color, weight: 4, opacity: 0.9, dashArray: '10 6' }}
+              // The dash scales with the weight, otherwise a thick line at the standard
+              // dash length turns into a row of squares.
+              pathOptions={{
+                color, weight: 4 * size * zw, opacity: 0.9,
+                dashArray: `${Math.round(10 * size * zw)} ${Math.round(6 * size * zw)}`,
+              }}
               eventHandlers={{
                 click: e => {
                   e.originalEvent.stopPropagation()

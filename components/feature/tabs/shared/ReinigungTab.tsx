@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { Save, Check, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { RatingButtons } from '@/components/ui/RatingButtons'
 import { SectionHead, inputCls } from './InfoPrimitives'
@@ -75,15 +76,19 @@ export function ReinigungTab({ feature }: FormProps) {
         />
       </Field>
 
-      <Button variant="success" size="sm" fullWidth className="py-2"
+      <Button variant="primary" size="sm" fullWidth className="flex items-center justify-center gap-2 py-2.5"
         onClick={save} disabled={saving}
       >
-        {saved ? '✓ Gespeichert' : saving ? 'Speichert…' : '💾 Reinigung speichern'}
+        {saved
+          ? <><Check className="h-4 w-4" aria-hidden /> Gespeichert</>
+          : saving
+            ? 'Speichert…'
+            : <><Save className="h-4 w-4" aria-hidden /> Reinigung speichern</>}
       </Button>
 
       {error && (
         <div className="flex items-center gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-          <span>⚠</span><span>{error}</span>
+          <AlertTriangle className="h-4 w-4 flex-shrink-0" aria-hidden /><span>{error}</span>
         </div>
       )}
     </div>

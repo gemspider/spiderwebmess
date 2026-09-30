@@ -1,6 +1,8 @@
 'use client'
 import { useState } from 'react'
+import { Sun, CloudSun, CloudRain, Snowflake, Wind, Save, Camera, Trash2, Check, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+import { cn } from '@/lib/utils'
 import { SectionHead, inputCls } from './InfoPrimitives'
 import type { FormProps } from '@/lib/registry'
 import { saveWartung } from '@/modules/kanal/api'
@@ -66,23 +68,34 @@ export function AufgabeTab({ feature }: FormProps) {
       <Field label="Wetter">
         <div className="flex gap-2">
           {[
-            { val: 'sonnig', icon: '☀️' }, { val: 'bewölkt', icon: '⛅' },
-            { val: 'Regen',  icon: '🌧'  }, { val: 'Schnee',  icon: '❄️' },
-            { val: 'Wind',   icon: '💨'  },
-          ].map(w => (
-            <button
-              key={w.val}
-              onClick={() => setWetter(wetter === w.val ? '' : w.val)}
-              title={w.val}
-              className={`flex-1 py-2.5 rounded-xl border text-base transition-all ${
-                wetter === w.val ? 'border-brand bg-brand-light shadow-sm' : 'border-border bg-white hover:bg-surface-soft'
-              }`}
-            >
-              {w.icon}
-            </button>
-          ))}
+            { val: 'sonnig',  Icon: Sun },
+            { val: 'bewölkt', Icon: CloudSun },
+            { val: 'Regen',   Icon: CloudRain },
+            { val: 'Schnee',  Icon: Snowflake },
+            { val: 'Wind',    Icon: Wind },
+          ].map(({ val, Icon }) => {
+            const active = wetter === val
+            return (
+              <button
+                key={val}
+                type="button"
+                aria-pressed={active}
+                onClick={() => setWetter(active ? '' : val)}
+                title={val}
+                className={cn(
+                  'flex flex-1 items-center justify-center rounded-xl border py-2.5 transition-all',
+                  active
+                    ? 'border-brand bg-brand-light text-brand shadow-sm'
+                    : 'border-border bg-white text-ink-dim hover:border-border-strong hover:text-ink-muted',
+                )}
+              >
+                <Icon className="h-[18px] w-[18px]" aria-hidden />
+                <span className="sr-only">{val}</span>
+              </button>
+            )
+          })}
         </div>
-        {wetter && <p className="mt-1.5 text-xs text-ink-dim text-center">{wetter}</p>}
+        {wetter && <p className="mt-1.5 text-center text-xs text-ink-dim">{wetter}</p>}
       </Field>
 
       <Field label="Anmerkung">
@@ -94,25 +107,39 @@ export function AufgabeTab({ feature }: FormProps) {
       </Field>
 
       <div className="flex items-center gap-2 pt-1">
-        <Button variant="success" size="sm" className="flex-1 py-2" onClick={save} disabled={saving}>
-          {saved ? '✓ Gespeichert' : saving ? 'Speichert…' : '💾 Speichern'}
+        <Button variant="primary" size="sm" className="flex flex-1 items-center justify-center gap-2 py-2.5" onClick={save} disabled={saving}>
+          {saved
+            ? <><Check className="h-4 w-4" aria-hidden /> Gespeichert</>
+            : saving
+              ? 'Speichert…'
+              : <><Save className="h-4 w-4" aria-hidden /> Speichern</>}
         </Button>
-        <button className="flex items-center gap-1.5 px-3 py-2 text-sm border border-border rounded-xl text-ink-muted hover:bg-surface-soft transition-colors">
-          📷 <span>Foto</span>
+        <button
+          type="button"
+          className="flex items-center gap-1.5 rounded-xl border border-border px-3 py-2.5 text-sm text-ink-muted transition-colors hover:bg-surface-muted"
+        >
+          <Camera className="h-4 w-4" aria-hidden />
+          <span>Foto</span>
         </button>
-        <button className="flex items-center gap-1.5 px-3 py-2 text-sm border border-red-200 rounded-xl text-red-500 hover:bg-red-50 transition-colors">
-          🗑
+        <button
+          type="button"
+          aria-label="Aufgabe löschen"
+          className="flex items-center rounded-xl border border-red-200 px-3 py-2.5 text-red-600 transition-colors hover:bg-red-50"
+        >
+          <Trash2 className="h-4 w-4" aria-hidden />
         </button>
       </div>
 
       {saved && (
-        <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
-          <span>✓</span><span>Aufgabe gespeichert</span>
+        <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          <Check className="h-4 w-4 flex-shrink-0" aria-hidden />
+          <span>Aufgabe gespeichert</span>
         </div>
       )}
       {error && (
-        <div className="flex items-center gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-          <span>⚠</span><span>{error}</span>
+        <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <AlertTriangle className="h-4 w-4 flex-shrink-0" aria-hidden />
+          <span>{error}</span>
         </div>
       )}
     </div>

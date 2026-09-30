@@ -37,9 +37,12 @@ export interface LayerConfig {
 // ─── Feature tab types ───────────────────────────────────────────────────────
 
 export type FeatureTab =
+  | 'allgemein'
   | 'info'
   | 'aufgabe'
   | 'beobachtungen'
+  | 'folge'
+  | 'bilder'
   | 'reinigung'
   | 'bericht'
 
@@ -52,11 +55,19 @@ export interface FormProps {
   featureType: string
 }
 
+/** A lucide-react icon, or anything with the same call shape. */
+export type IconComponent = ComponentType<{ className?: string }>
+
 // ─── Feature type config ─────────────────────────────────────────────────────
 
 export interface FeatureTypeConfig {
   label:           string
-  icon:            string
+  /**
+   * Lucide component, not an emoji. An emoji renders in whatever the platform ships —
+   * Apple's 🔔 is a gold cartoon bell — so it cannot be given the feature's colour, cannot
+   * be sized against the type scale, and looks different on every device.
+   */
+  icon:            IconComponent
   symbolType:      SymbolType
   /** Base color for the feature — condition field overrides this per-feature */
   color:           string
@@ -78,7 +89,7 @@ export interface FeatureTypeConfig {
 export interface ModuleConfig {
   id:          string       // 'kanal' | 'wasser' | 'bruecke' …
   label:       string
-  icon:        string
+  icon:        IconComponent
   color:       string
   /** Sent as X-Fachschale header on all API calls for this module */
   fachschale:  string
@@ -123,9 +134,17 @@ export function getTabsForFeature(
   featureType: string,
 ): { id: FeatureTab; label: string }[] {
   const TAB_LABELS: Record<FeatureTab, string> = {
+    // Maintenance tasks open on 'Allgemein'; network objects open on 'Übersicht'.
+    // Two ids rather than one relabelled tab, because the order below decides which
+    // tab a feature opens on.
+    allgemein:     'Allgemein',
     info:          'Übersicht',
     aufgabe:       'Aufgabe',
     beobachtungen: 'Beobachtungen',
+    // The original application's task dialog names these two; they are separate tabs
+    // because the follow-up is a different question from the observation itself.
+    folge:         'Folgetätigkeiten',
+    bilder:        'Galerie',
     reinigung:     'Reinigung',
     bericht:       'Bericht',
   }
@@ -140,11 +159,6 @@ export function getFullLayerTree(): LayerConfig[] {
   return _modules.flatMap(m => m.layerTree)
 }
 
-// ISYBAU condition level colors — exact values from App2 kanalLayer.js (SBZ_COLORS / GSK_COLORS)
-export const LEVEL_COLORS: Record<number, string> = {
-  1: '#4ce600',  // green  — sehr gut
-  2: '#0070ff',  // blue   — gut
-  3: '#ffff00',  // yellow — mittel
-  4: '#ffaa00',  // orange — schlecht
-  5: '#e60000',  // red    — sehr schlecht
-}
+// ISYBAU condition level colours. One definition, in lib/palettes — this was a fourth
+// copy of the same five hex values, and it is why correcting them missed places.
+export { ISYBAU_LEVELS as LEVEL_COLORS } from '@/lib/palettes'

@@ -9,11 +9,13 @@ export function SectionHead({ children }: { children: string }) {
   )
 }
 
-export function Row({ label, value }: { label: string; value: string | number | null | undefined }) {
+export function Row({ label, value }: { label: string; value?: React.ReactNode }) {
   return (
     <div className="flex justify-between items-center px-4 py-2.5 border-b border-border/40 last:border-0">
       <span className="text-sm text-ink-dim flex-shrink-0 mr-3">{label}</span>
-      <span className="text-sm font-semibold text-ink text-right truncate">{value ?? '—'}</span>
+      <span className="min-w-0 truncate text-right text-sm font-semibold text-ink">
+        {value === null || value === undefined || value === '' ? '—' : value}
+      </span>
     </div>
   )
 }

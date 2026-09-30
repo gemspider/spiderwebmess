@@ -53,20 +53,15 @@ export const config = {
   },
 } as const;
 
-// Schacht damage class (SBZ) border colors — exact values from kanalLayer.js
-export const SBZ_COLORS: Record<number, string> = {
-  1: '#4ce600',
-  2: '#0070ff',
-  3: '#ffff00',
-  4: '#ffaa00',
-  5: '#e60000',
-};
+// Schacht (SBZ) and Haltung (GSK) class colours, for KanalMapManager.
+//
+// That component is not mounted — KanalLayers replaced it — and these are the only two
+// consumers, so nothing on screen comes from here. Kept in step with lib/palettes all
+// the same: a stale copy left in the tree is what the next person will read and trust.
+import { ISYBAU_LEVELS } from './palettes';
 
-// Haltung damage class (GSK) line colors
-export const GSK_COLORS: Record<string, string> = {
-  '1': '#4ce600',
-  '2': '#0070ff',
-  '3': '#ffff00',
-  '4': '#ffaa00',
-  '5': '#ff0000',
-};
+export const SBZ_COLORS: Record<number, string> = ISYBAU_LEVELS;
+
+export const GSK_COLORS: Record<string, string> = Object.fromEntries(
+  Object.entries(ISYBAU_LEVELS),
+);

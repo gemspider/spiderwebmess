@@ -105,3 +105,84 @@ html, body {
     height: calc(3rem + env(safe-area-inset-top, 0px));
   }
 }
+
+/* ── Print — the datasheet is a document that gets filed ───────────────────── */
+/* Direction A's whole argument is that this sheet leaves the screen. Chrome drops
+   out, cards lose their shadows and rounding, and sections avoid page breaks. */
+
+@media print {
+  html, body {
+    height: auto;
+    overflow: visible;
+    background: #ffffff;
+  }
+  .print\:hidden { display: none !important; }
+
+  /* Cards become plain ruled blocks — a shadow costs toner and says nothing on paper. */
+  section {
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Two columns on paper regardless of the screen this was opened on. */
+  .md\:grid-cols-2 { grid-template-columns: 1fr 1fr !important; }
+
+  a[href]::after { content: ''; }
+}
+
+/* ── Fachschale accents ─────────────────────────────────────────────────────
+   The service being worked on sets the accent, so a glance at the chrome tells you
+   which network you are in. All of them are deep and low-chroma: the ISYBAU condition
+   ramp owns the saturated end of the spectrum, and chrome that competes with it makes
+   a "gut" manhole and a primary button read as the same signal.
+
+   Kanal is the default because it is the only module with data today. */
+
+:root,
+[data-module='kanal'] {
+  --brand:        #0f4c81;   /* deep azure — distinctly darker than ISYBAU 2 (#0070ff) */
+  --brand-hover:  #14598f;
+  --brand-light:  #eef4fa;
+  --brand-border: #c3d8ea;
+  --brand-ink:    #0b3a63;
+}
+
+[data-module='wasser'] {
+  --brand:        #0e6f78;   /* petrol — potable water reads cooler than sewer */
+  --brand-hover:  #11838e;
+  --brand-light:  #edf6f7;
+  --brand-border: #b9dde0;
+  --brand-ink:    #0a545b;
+}
+
+[data-module='beleuchtung'] {
+  --brand:        #8a5a15;   /* bronze. Dark enough not to be mistaken for ISYBAU 4 */
+  --brand-hover:  #a06a1d;
+  --brand-light:  #faf4ec;
+  --brand-border: #e4d2b6;
+  --brand-ink:    #6b4510;
+}
+
+/* ── Map popups ─────────────────────────────────────────────────────────────
+   Leaflet's default popup is a white box with 13px serif-ish type and a lot of
+   padding. These carry product UI, so they take the product's surface, radius and
+   shadow instead. */
+
+.leaflet-popup.wartung-popup .leaflet-popup-content-wrapper {
+  border-radius: 12px;
+  padding: 0;
+  background: #ffffff;
+  box-shadow: 0 6px 24px -6px rgb(28 25 23 / 0.25), 0 2px 6px rgb(28 25 23 / 0.08);
+  border: 1px solid #e7e5e4;
+}
+.leaflet-popup.wartung-popup .leaflet-popup-content {
+  margin: 12px 14px;
+  line-height: 1.45;
+}
+.leaflet-popup.wartung-popup .leaflet-popup-tip {
+  background: #ffffff;
+  box-shadow: none;
+  border: 1px solid #e7e5e4;
+}

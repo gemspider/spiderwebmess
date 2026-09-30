@@ -6,6 +6,9 @@ import { getFullLayerTree } from '@/lib/registry'
 import type { LayerConfig } from '@/lib/registry'
 import type { BaseTile } from '@/lib/tiles'
 import { cn } from '@/lib/utils'
+import { useLayerCounts, branchCount, type LayerCounts } from '@/lib/layerCounts'
+import { useLevelColors, useLayerColor, useLayerNoClass } from '@/lib/store/styleStore'
+import { LayerStyleSheet } from './LayerStyleSheet'
 
 // ─── Base tile selector ───────────────────────────────────────────────────────
 
@@ -55,11 +58,15 @@ function HintergrundSection() {
 // ─── GIS Symbols ─────────────────────────────────────────────────────────────
 
 function LayerSymbol({ layer }: { layer: LayerConfig }) {
-  const c = layer.color
+  const c = useLayerColor(layer.id, layer.color)
+  const levels = useLevelColors()
 
-  // Multi-color swatch for layers classified by legend items
+  // Multi-color swatch for layers classified by legend items. The legend follows the
+  // active ramp, so the sidebar can never disagree with the map.
   if (layer.legendItems && layer.legendItems.length > 0) {
-    const swatches = layer.legendItems.slice(0, 5)
+    const swatches = layer.legendItems
+      .slice(0, 5)
+      .map((item, i) => ({ ...item, color: levels[i + 1] ?? item.color }))
     if (layer.legendType === 'bar') {
       return (
         <div className="flex gap-px flex-shrink-0">
@@ -129,10 +136,19 @@ function LayerSymbol({ layer }: { layer: LayerConfig }) {
 // ─── Legend items ─────────────────────────────────────────────────────────────
 
 function LegendItems({ layer }: { layer: LayerConfig }) {
+  const levels = useLevelColors()
+  const noClass = useLayerNoClass(layer.id)
   if (!layer.legendItems) return null
+  // The scale, plus the colour everything outside it is drawn in. That last entry is
+  // three quarters of the Schächte on screen, and the legend never named it — so the
+  // dominant colour on the map was the one with no explanation.
+  const items = [
+    ...layer.legendItems.map((item, i) => ({ ...item, color: levels[i + 1] ?? item.color })),
+    { label: 'ohne', color: noClass },
+  ]
   return (
     <div className="flex flex-wrap gap-x-3 gap-y-1 py-1.5 px-1">
-      {layer.legendItems.map(item => (
+      {items.map(item => (
         <div key={item.label} className="flex items-center gap-1">
           {layer.legendType === 'dot' ? (
             <svg width="12" height="12" viewBox="0 0 12 12">
@@ -153,16 +169,52 @@ function LegendItems({ layer }: { layer: LayerConfig }) {
 
 // ─── Individual layer item ────────────────────────────────────────────────────
 
-function LayerItem({ layer }: { layer: LayerConfig }) {
+function LayerItem({ layer, counts }: { layer: LayerConfig; counts?: LayerCounts }) {
   const { layerVisibility, toggleLayer } = useMapStore()
   const visible = layerVisibility[layer.id] ?? layer.defaultVisible
+  const count = useCount(layer, counts)
+  const empty = count === 0
 
   return (
-    <div className="flex items-center gap-2 py-1 px-1.5 rounded-md hover:bg-surface-soft group">
-      <Toggle checked={visible} onChange={() => toggleLayer(layer.id)} size="sm" />
+    <div className={cn(
+      'flex items-center gap-2 py-1 px-1.5 rounded-md hover:bg-surface-soft group',
+      empty && 'opacity-55',
+    )}>
+      {/* An empty layer keeps its row but not its switch — flipping it would change
+          nothing on the map, and a control that does nothing is worse than none. */}
+      <Toggle
+        checked={visible && !empty}
+        onChange={() => !empty && toggleLayer(layer.id)}
+        disabled={empty}
+        size="sm"
+      />
       <span className="text-xs text-ink-muted flex-1">{layer.label}</span>
-      <LayerSymbol layer={layer} />
+      <CountBadge count={count} />
+      <StyleTrigger layer={layer} />
     </div>
+  )
+}
+
+/** The layer's symbol, doubling as the button that opens its appearance sheet. */
+function StyleTrigger({ layer }: { layer: LayerConfig }) {
+  const [open, setOpen] = useState(false)
+  const styleable = Boolean(layer.symbol) || Boolean(layer.legendItems?.length)
+
+  if (!styleable) return <LayerSymbol layer={layer} />
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={e => { e.stopPropagation(); setOpen(true) }}
+        title={`Darstellung von ${layer.label} ändern`}
+        className="-m-1 rounded-md p-1 transition-colors hover:bg-surface-sunken focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+      >
+        <LayerSymbol layer={layer} />
+        <span className="sr-only">Darstellung ändern</span>
+      </button>
+      <LayerStyleSheet layer={layer} open={open} onOpenChange={setOpen} />
+    </>
   )
 }
 
@@ -173,17 +225,48 @@ function collectLeafIds(layer: LayerConfig): string[] {
   return layer.children.flatMap(collectLeafIds)
 }
 
+/**
+ * How many features this branch holds.
+ *
+ * Every branch in the tree is listed whether or not the snapshot has data for it, and
+ * says how much it has. Dropping the empty ones made the tree differ from the original
+ * application's with no explanation an operator could see; a "0" is a fact about the
+ * data, a missing row looks like a defect in the software.
+ */
+function useCount(layer: LayerConfig, counts: LayerCounts | undefined): number | undefined {
+  return branchCount(collectLeafIds(layer), counts)
+}
+
+/** Count, right-aligned in the row. Absent while loading and for branches we cannot count. */
+function CountBadge({ count }: { count: number | undefined }) {
+  if (count == null) return null
+  return (
+    <span
+      className={cn(
+        'font-mono text-[10px] tabular-nums',
+        count === 0 ? 'text-ink-faint' : 'text-ink-dim',
+      )}
+      title={count === 0 ? 'keine Objekte im Datenbestand' : `${count} Objekte`}
+    >
+      {count.toLocaleString('de-AT')}
+    </span>
+  )
+}
+
 // ─── Collapsible layer group ──────────────────────────────────────────────────
 
-function LayerGroup({ layer, depth = 0 }: { layer: LayerConfig; depth?: number }) {
+function LayerGroup({ layer, depth = 0, counts }: {
+  layer: LayerConfig; depth?: number; counts?: LayerCounts
+}) {
   const [open, setOpen] = useState(true)
   const { layerVisibility, toggleLayer, setManyVisible } = useMapStore()
+  const count = useCount(layer, counts)
 
   const hasChildren  = !!layer.children
   const hasLegend    = !!layer.legendItems
 
   // Pure leaf with no legend — just a simple row
-  if (!hasChildren && !hasLegend) return <LayerItem layer={layer} />
+  if (!hasChildren && !hasLegend) return <LayerItem layer={layer} counts={counts} />
 
   const hasToggle = layer.id !== 'hintergrund'
   const visible   = layerVisibility[layer.id] ?? layer.defaultVisible
@@ -199,28 +282,35 @@ function LayerGroup({ layer, depth = 0 }: { layer: LayerConfig; depth?: number }
     }
   }
 
+  // A group whose every leaf is empty is inert for the same reason its leaves are.
+  const empty = count === 0
+
   return (
     <div>
       <div
-        className="flex items-center gap-2 py-1.5 px-1 rounded-md cursor-pointer hover:bg-surface-soft group select-none"
+        className={cn(
+          'flex items-center gap-2 py-1.5 px-1 rounded-md cursor-pointer hover:bg-surface-soft group select-none',
+          empty && 'opacity-55',
+        )}
         onClick={() => setOpen(o => !o)}
       >
         {hasToggle && (
-          <span onClick={handleGroupToggle}>
-            <Toggle checked={visible} onChange={() => {}} size="sm" />
+          <span onClick={empty ? e => e.stopPropagation() : handleGroupToggle}>
+            <Toggle checked={visible && !empty} onChange={() => {}} disabled={empty} size="sm" />
           </span>
         )}
         <span className={cn('text-xs flex-1', depth === 0 ? 'font-semibold text-ink-muted' : 'font-medium text-ink-muted')}>
           {layer.label}
         </span>
-        <LayerSymbol layer={layer} />
+        <CountBadge count={count} />
+        <StyleTrigger layer={layer} />
         <span className="text-[9px] text-ink-dim ml-1">{open ? '▾' : '▸'}</span>
       </div>
 
       {open && (
         <div className={cn('ml-3 border-l border-border pl-2', depth > 0 && 'ml-4')}>
           {layer.children?.map(child => (
-            <LayerGroup key={child.id} layer={child} depth={depth + 1} />
+            <LayerGroup key={child.id} layer={child} depth={depth + 1} counts={counts} />
           ))}
           <LegendItems layer={layer} />
         </div>
@@ -275,11 +365,24 @@ function WmsPanel() {
 // ─── Main Sidebar ─────────────────────────────────────────────────────────────
 
 export function LayerSidebar() {
-  const { sidebarOpen } = useMapStore()
+  const { sidebarOpen, toggleSidebar } = useMapStore()
   const [wmsOpen, setWmsOpen] = useState(false)
   const layerTree = getFullLayerTree()
+  const counts = useLayerCounts()
 
   return (
+    <>
+      {/* Phones only — on desktop the sidebar pushes the map aside and nothing is
+          covered, so dismissing by tapping away would be surprising. */}
+      <div
+        onClick={toggleSidebar}
+        aria-hidden
+        className={cn(
+          'fixed inset-0 z-[999] bg-ink/25 transition-opacity duration-200 md:hidden',
+          sidebarOpen ? 'opacity-100' : 'pointer-events-none opacity-0',
+        )}
+      />
+
     <aside
       className={cn(
         'h-full bg-surface-soft border-r border-border flex flex-col overflow-hidden transition-all duration-200 ease-in-out',
@@ -312,7 +415,7 @@ export function LayerSidebar() {
         <div className="h-px bg-border my-1.5 mx-1" />
         {layerTree.map((layer, i) => (
           <div key={layer.id}>
-            <LayerGroup layer={layer} />
+            <LayerGroup layer={layer} counts={counts} />
             {i < layerTree.length - 1 && (
               <div className="h-px bg-border my-1.5 mx-1" />
             )}
@@ -332,5 +435,6 @@ export function LayerSidebar() {
         </>
       </div>
     </aside>
+    </>
   )
 }

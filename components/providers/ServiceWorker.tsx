@@ -13,8 +13,24 @@ import { useEffect } from 'react'
 export function ServiceWorker() {
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return
+
     // next dev serves an unbundled app; a worker caching it makes hot reload lie.
-    if (process.env.NODE_ENV !== 'production') return
+    //
+    // Unregister rather than just skip: a worker registered by an earlier production
+    // preview on the same origin keeps control and keeps serving its cached chunks,
+    // which looks exactly like the dev server ignoring your edits. Preview now runs on
+    // a different port so this cannot recur, but existing registrations still need
+    // clearing.
+    if (process.env.NODE_ENV !== 'production') {
+      navigator.serviceWorker.getRegistrations().then(regs => {
+        for (const reg of regs) reg.unregister()
+        if (regs.length) {
+          caches?.keys().then(keys => keys.forEach(k => caches.delete(k)))
+          console.info('[dev] Removed a stale service worker and its caches. Reload once.')
+        }
+      }).catch(() => {})
+      return
+    }
 
     const register = () => {
       navigator.serviceWorker.register('/sw.js').catch(() => {

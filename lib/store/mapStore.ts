@@ -11,6 +11,20 @@ import type { BaseTile } from '@/lib/tiles'
 
 export type LayerVisibility = Record<string, boolean>
 
+/**
+ * What the map is showing a popup for.
+ *
+ * One popup in the store rather than one <Popup> per feature. The Wartung layer can
+ * afford a component per marker at 329 of them; Schächte and Haltungen are 8 810, and
+ * mounting a popup for each is the element count we spent a week getting rid of.
+ */
+export interface PopupTarget {
+  id:     string
+  type:   string                 // 'schacht' | 'haltung'
+  latlng: [number, number]
+  props:  Record<string, unknown>
+}
+
 interface MapStore {
   // ── Feature selection ────────────────────────────────────────────────────
   selectedFeatureId:   string | null
@@ -21,6 +35,11 @@ interface MapStore {
     module?: string,
     type?: string,
   ) => void
+
+  // ── Map popup (the step before the panel) ────────────────────────────────
+  popup:      PopupTarget | null
+  openPopup:  (target: PopupTarget) => void
+  closePopup: () => void
 
   // ── Feature panel tab ────────────────────────────────────────────────────
   activeTab:    FeatureTab
@@ -63,7 +82,14 @@ export const useMapStore = create<MapStore>((set, get) => ({
     selectedModule:      module ?? get().selectedModule,
     selectedFeatureType: type   ?? get().selectedFeatureType,
     activeTab:           'info',
+    // The popup is the doorway to the panel; leaving it open behind the panel means
+    // closing the panel drops you back onto a stale bubble.
+    popup:               null,
   }),
+
+  popup:      null,
+  openPopup:  target => set({ popup: target }),
+  closePopup: () => set({ popup: null }),
 
   // Panel tab
   activeTab:    'info',

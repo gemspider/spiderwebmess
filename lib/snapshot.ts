@@ -11,6 +11,7 @@
 
 import type { Feature, FeatureCollection } from 'geojson'
 import { loadJSON, layerPath, detailPath } from './staticData'
+import { listTasks, taskAsFeature } from './demoTasks'
 
 /** Snapshot layer names — the four files in public/data/layers/. */
 export type LayerName = 'schaechte' | 'haltungen' | 'wartungen' | 'reinigungen'
@@ -114,6 +115,18 @@ function normaliseProperties(props: Record<string, unknown>): Record<string, unk
 // mount. Cache the processed collection, keyed by layer.
 const layerCache = new Map<LayerName, Promise<FeatureCollection>>()
 
+/**
+ * Drops the memoised collection so the next read picks up a newly created task.
+ *
+ * Callers also have to invalidate the React Query key that wraps it — the cache here
+ * only decides what a refetch returns, not when one happens.
+ */
+export function invalidateLayer(name: LayerName): void {
+  layerCache.delete(name)
+  indexCache.delete(name)
+  nameIndexCache.delete(name)
+}
+
 export function loadLayer(name: LayerName): Promise<FeatureCollection> {
   let p = layerCache.get(name)
 
@@ -131,13 +144,27 @@ export function loadLayer(name: LayerName): Promise<FeatureCollection> {
         if (id !== null) props.id = Number.isNaN(Number(id)) ? id : Number(id)
         return { ...f, properties: props }
       }),
-    }))
+    })).then(fc => (name === 'wartungen' ? withDemoTasks(fc) : fc))
 
     p.catch(() => layerCache.delete(name))
     layerCache.set(name, p)
   }
 
   return p
+}
+
+/**
+ * Appends tasks the user raised in this demo.
+ *
+ * They go through the same collection the map and the panel read, so a created task is
+ * a feature like any other: it clusters, it is culled by the viewport, it opens a popup.
+ * The alternative — a second layer for demo tasks — would have needed every one of
+ * those behaviours written twice.
+ */
+function withDemoTasks(fc: FeatureCollection): FeatureCollection {
+  const extra = listTasks().map(taskAsFeature)
+  if (!extra.length) return fc
+  return { ...fc, features: [...fc.features, ...extra] }
 }
 
 // ─── Layer property index (id → properties) ──────────────────────────────────
@@ -162,6 +189,35 @@ export function loadLayerIndex(name: LayerName): Promise<Map<string, Record<stri
 
     p.catch(() => indexCache.delete(name))
     indexCache.set(name, p)
+  }
+
+  return p
+}
+
+// ─── Layer name index (name → id) ────────────────────────────────────────────
+
+const nameIndexCache = new Map<LayerName, Promise<Map<string, string>>>()
+
+/**
+ * `name` → id. Several joins in this data are by name rather than by key:
+ * haltungen.von_knoten holds a Schacht *name*, and so does wartungen.objektname.
+ */
+export function loadLayerNameIndex(name: LayerName): Promise<Map<string, string>> {
+  let p = nameIndexCache.get(name)
+
+  if (!p) {
+    p = loadLayer(name).then(fc => {
+      const index = new Map<string, string>()
+      for (const f of fc.features) {
+        const key = f.properties?.name
+        const id = f.properties?.id
+        if (key && id !== null && id !== undefined) index.set(String(key), String(id))
+      }
+      return index
+    })
+
+    p.catch(() => nameIndexCache.delete(name))
+    nameIndexCache.set(name, p)
   }
 
   return p

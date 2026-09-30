@@ -1,50 +1,57 @@
 'use client'
+
+// Schacht — the detail list.
+//
+// The field list and its order follow the original application's "Info : Schächte"
+// window exactly, for the same reason the Haltung one does: the crews have used that
+// window for years, and a tidier arrangement costs them more than it gains.
+//
+// Every value comes from the GeoServer view rather than kanal.schaechte. The base table
+// holds *_id foreign keys and almost none of these columns — see the first data finding
+// in CLAUDE.md. lib/fieldAliases fills the app's own names alongside, never over, so
+// both spellings are on the row and this tab reads the view's.
+
 import type { FormProps } from '@/lib/registry'
 import type { KanalSchacht } from '../types'
 import { InfoCard, Row, SectionHead } from '@/components/feature/tabs/shared/InfoPrimitives'
-import { LEVEL_COLORS } from '@/lib/registry'
+import { ConditionBadge } from '@/components/ui/ConditionBadge'
+import { toLevel } from '@/modules/kanal/datenblatt'
+
+/** A condition cell: the chip where a class was assessed, a dash where it was not. */
+function Klasse({ value }: { value: unknown }) {
+  const level = toLevel(value)
+  return level ? <ConditionBadge level={level} /> : null
+}
 
 export function SchachtInfoTab({ feature }: FormProps) {
   const s = feature as KanalSchacht
-  const sbz = s.sbz
-  const sbzColor = sbz ? LEVEL_COLORS[sbz] : undefined
 
   return (
     <div>
-      <SectionHead>Stammdaten</SectionHead>
+      <SectionHead>Info : Schächte</SectionHead>
       <InfoCard>
-        <Row label="Bezeichnung"       value={s.bezeichnung} />
-        <Row label="Deckel Nr."        value={s.deckel_nr} />
-        <Row label="Material"          value={s.material} />
-        <Row label="DN"                value={s.nennweite} />
-        <Row label="Tiefe"             value={s.tiefe != null ? `${Number(s.tiefe).toFixed(2)} m` : null} />
-        <Row label="SOH"               value={s.soh} />
-        {s.dok && <Row label="DOK"     value={s.dok} />}
-        <Row label="Abdecktyp"         value={s.abdecktyp} />
-        <Row label="Schachtform"       value={s.schachtform} />
-        <Row label="Bauzustand"        value={s.schachtbauzustand ? `${s.schachtbauzustand} / 5` : null} />
+        <Row label="Schacht Nr"         value={s.schacht_nr} />
+        <Row label="Strang"             value={s.strang} />
+        <Row label="Entwässerungssystem" value={s.entw_system} />
+        <Row label="DOK"                value={s.dok} />
+        <Row label="Sohle"              value={s.sohle} />
+        <Row label="Abstich"            value={s.abstich} />
         <Row label="Letzte Überprüfung" value={s.letzte_ueberpruefung} />
-        <Row label="Überprüfer"        value={s.ueberprufer} />
-        <Row label="Art der Überprüfung" value={s.art_der_ueberpruefung} />
+        <Row label="Name"               value={s.name} />
+        <Row label="Anmerkung"          value={s.anmerkung} />
+        <Row label="Ortsteil"           value={s.ortsteil} />
+        <Row label="Zone"               value={s.zone} />
+        <Row label="Schachtart"         value={s.schachtart} />
+        <Row label="Material"           value={s.material} />
+        <Row label="Querschnitt"        value={s.querschnitt} />
+        <Row label="Vermesser"          value={s.vermesser} />
+        <Row label="Inbetriebnahme"     value={s.inbetriebnahme} />
+        <Row label="Inspekteur"         value={s.inspekteur} />
+        <Row label="SBZ"                value={<Klasse value={s.sbz} />} />
+        <Row label="GBZ"                value={<Klasse value={s.gbz} />} />
+        <Row label="FFK"                value={<Klasse value={s.ffk} />} />
+        <Row label="Zone NEU"           value={s.zone_neu} />
       </InfoCard>
-
-      {sbz && (
-        <>
-          <SectionHead>Schadensklasse (SBZ)</SectionHead>
-          <div
-            className="flex items-center gap-3 px-4 py-3 rounded-xl border text-sm font-semibold"
-            style={{ borderColor: `${sbzColor}40`, background: `${sbzColor}10`, color: sbzColor }}
-          >
-            <span
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-base flex-shrink-0"
-              style={{ background: sbzColor }}
-            >
-              {sbz}
-            </span>
-            SBZ {sbz} — {['Sehr gut', 'Gut', 'Mittel', 'Schlecht', 'Sehr schlecht'][sbz - 1]}
-          </div>
-        </>
-      )}
     </div>
   )
 }

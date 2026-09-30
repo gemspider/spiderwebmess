@@ -3,7 +3,10 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Toggle } from '@/components/ui/Toggle'
 import { SectionHead, inputCls } from './InfoPrimitives'
-import { LEVEL_COLORS } from '@/lib/registry'
+import { useLevelColors } from '@/lib/store/styleStore'
+import { LEVEL_LABEL, levelInk } from '@/modules/kanal/datenblatt'
+import { cn } from '@/lib/utils'
+import { Check, Save } from 'lucide-react'
 import type { FormProps } from '@/lib/registry'
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -16,6 +19,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 export function BeobachtungenTab(_: FormProps) {
+  const LEVEL_COLORS = useLevelColors()
   const [obsOn,       setObsOn]       = useState(true)
   const [selectedSbz, setSelectedSbz] = useState<number | null>(null)
   const [anmerkung,   setAnmerkung]   = useState('')
@@ -34,8 +38,9 @@ export function BeobachtungenTab(_: FormProps) {
           <Toggle checked={obsOn} onChange={setObsOn} />
         </div>
         {obsOn && (
-          <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full mt-2">
-            ✓ Aktiv
+          <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">
+            <Check className="h-3 w-3" aria-hidden />
+            Aktiv
           </span>
         )}
       </div>
@@ -49,21 +54,37 @@ export function BeobachtungenTab(_: FormProps) {
             return (
               <button
                 key={n}
+                type="button"
+                aria-pressed={active}
                 onClick={() => setSelectedSbz(active ? null : n)}
-                className="flex-1 py-3 rounded-xl text-sm font-bold border transition-all"
-                style={{
-                  background:  active ? col : `${col}15`,
-                  color:       active ? '#fff' : col,
-                  borderColor: active ? col : `${col}40`,
-                  boxShadow:   active ? `0 0 0 3px ${col}30` : 'none',
-                }}
+                title={`SBZ ${n} — ${LEVEL_LABEL[n]}`}
+                className={cn(
+                  'flex flex-1 flex-col items-center gap-1.5 rounded-xl border py-2.5 transition-all',
+                  active
+                    ? 'border-ink bg-surface-muted shadow-sm'
+                    : 'border-border bg-white hover:border-border-strong',
+                )}
               >
-                {n}
+                {/* The swatch is a solid fill, and the number sits on it in ink chosen
+                    for that fill — never coloured text on a near-white wash. */}
+                <span
+                  className="flex h-7 w-9 items-center justify-center rounded-md font-mono text-[13px] font-semibold tabular-nums"
+                  style={{ background: col, color: levelInk(n) }}
+                >
+                  {n}
+                </span>
+                <span className="text-[10px] font-medium leading-none text-ink-dim">
+                  {LEVEL_LABEL[n]}
+                </span>
               </button>
             )
           })}
         </div>
-        {selectedSbz && <p className="mt-2 text-xs text-center text-ink-dim">SBZ {selectedSbz} ausgewählt</p>}
+        {selectedSbz && (
+          <p className="mt-2 text-center text-xs text-ink-dim">
+            SBZ {selectedSbz} — {LEVEL_LABEL[selectedSbz]} ausgewählt
+          </p>
+        )}
       </div>
 
       <Field label="Anmerkung">
@@ -74,10 +95,12 @@ export function BeobachtungenTab(_: FormProps) {
         />
       </Field>
 
-      <Button variant="success" size="sm" fullWidth className="py-2"
+      <Button variant="primary" size="sm" fullWidth className="flex items-center justify-center gap-2 py-2.5"
         onClick={() => { setSaved(true); setTimeout(() => setSaved(false), 2000) }}
       >
-        {saved ? '✓ Gespeichert' : '💾 Beobachtung speichern'}
+        {saved
+          ? <><Check className="h-4 w-4" aria-hidden /> Gespeichert</>
+          : <><Save  className="h-4 w-4" aria-hidden /> Beobachtung speichern</>}
       </Button>
     </div>
   )

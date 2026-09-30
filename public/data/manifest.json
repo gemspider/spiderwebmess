@@ -4,6 +4,18 @@
   "community_id": 54,
   "srid": 4326,
   "anonymised": 1,
-  "layers": ["schaechte","haltungen","wartungen","reinigungen"],
-  "details": ["schaechte","haltungen","wartungen","reinigungen"]
+  "layers": [
+    "schaechte",
+    "haltungen",
+    "wartungen",
+    "reinigungen"
+  ],
+  "details": [
+    "schaechte",
+    "haltungen",
+    "wartungen",
+    "reinigungen"
+  ],
+  "datenblatt": true,
+  "haltung_datenblatt": true
 }

@@ -22,6 +22,15 @@ export interface KanalHaltung {
   abwasserart?:          string | null
   letzte_ueberpruefung?: string | null
   anmerkung?:            string | null
+  // The rest of the original's "Info : Haltungen" window. All come from the GeoServer
+  // view — the base table holds *_id foreign keys, not these labels.
+  hoehe?:                number | null   // DN/Höhe, for a non-circular profile
+  ortsteil?:             string | null
+  zone?:                 string | null
+  inbetriebnahme?:       string | null
+  inspekteur?:           string | null
+  wr_bewill?:            string | null   // Wasserrecht, Bewilligungszahl
+  wr_datum?:             string | null
   [key: string]: unknown
 }
 
@@ -43,6 +52,24 @@ export interface KanalSchacht {
   letzte_ueberpruefung?: string | null
   ueberprufer?:        string | null
   art_der_ueberpruefung?: string | null
+  // The rest of the original's "Info : Schächte" window. These are the GeoServer view's
+  // own names; lib/fieldAliases fills the app's spellings alongside them, never over.
+  schacht_nr?:         string | null
+  strang?:             string | null
+  entw_system?:        string | null
+  sohle?:              number | null   // the view's name for soh
+  abstich?:            number | null   // the view's name for tiefe
+  name?:               string | null
+  anmerkung?:          string | null
+  ortsteil?:           string | null
+  zone?:               string | null
+  zone_neu?:           string | null
+  querschnitt?:        string | null
+  vermesser?:          string | null
+  inbetriebnahme?:     string | null
+  inspekteur?:         string | null
+  gbz?:                number | null   // Gerinnebauzustand 1–5
+  ffk?:                number | null   // Funktionsfähigkeit 1–5
   [key: string]: unknown
 }
 

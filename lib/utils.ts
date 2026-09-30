@@ -1,6 +1,7 @@
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 import { LEVEL_COLORS } from './registry'
+import { getLevelColors } from './store/styleStore'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -30,7 +31,8 @@ export function conditionBadge(conditionValue: number | string | null | undefine
   if (typeof conditionValue === 'number' && conditionValue >= 1 && conditionValue <= 5) {
     return {
       label: `${STATUS_LABELS[conditionValue - 1]}`,
-      color: LEVEL_COLORS[conditionValue],
+      // Active ramp, not the fixed table — this chip sits beside map features.
+      color: getLevelColors()[conditionValue] ?? LEVEL_COLORS[conditionValue],
     }
   }
 

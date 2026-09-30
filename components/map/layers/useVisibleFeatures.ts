@@ -21,6 +21,9 @@ import { useMap } from 'react-leaflet'
 import L from 'leaflet'
 import type { Feature, FeatureCollection, LineString, Point } from 'geojson'
 
+// Re-exported so the layers keep one import; the rule itself is Leaflet-free.
+export { zoomWeight, LABEL_ZOOM } from '@/lib/mapScale'
+
 /** Padding around the viewport, as a fraction of its size. */
 const VIEWPORT_PADDING = 0.3
 
@@ -63,6 +66,26 @@ function featureBounds(feature: Feature): L.LatLngBounds | null {
   }
 
   return null
+}
+
+/**
+ * The map's current zoom, updated on zoomend.
+ *
+ * Its own hook because the line weights need it and the culling already tracked it
+ * privately — two components watching the same event beats one of them guessing.
+ */
+export function useZoom(): number {
+  const map = useMap()
+  const [zoom, setZoom] = useState(() => map.getZoom())
+
+  useEffect(() => {
+    const update = () => setZoom(map.getZoom())
+    update()
+    map.on('zoomend', update)
+    return () => { map.off('zoomend', update) }
+  }, [map])
+
+  return zoom
 }
 
 /**

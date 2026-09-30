@@ -7,6 +7,7 @@ import { TILES } from '@/lib/tiles'
 import { config } from '@/lib/config'
 import { KanalLayers } from './layers/kanal'
 import MapResizeHandler from './MapResizeHandler'
+import { NetworkPopup } from './NetworkPopup'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -115,6 +116,8 @@ export default function MapInner() {
 
         {/* Render the active module's map layers */}
         {activeModule === 'kanal' && <KanalLayers />}
+        {/* One popup for the whole network, positioned from the store. */}
+        <NetworkPopup />
       </MapContainer>
 
       <MapHint />

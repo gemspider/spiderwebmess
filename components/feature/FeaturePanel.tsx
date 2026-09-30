@@ -6,6 +6,12 @@ import { conditionBadge, cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import MiniMap from '@/components/map/MiniMap'
+import Link from 'next/link'
+import { FileText } from 'lucide-react'
+import { AddTaskSheet } from './AddTaskSheet'
+import { objectLabel } from '@/modules/kanal/datenblatt'
+import { taskColor } from '@/components/map/layers/kanal'
+import { TaskActions } from './TaskActions'
 import type { SymbolType } from '@/lib/registry'
 import type { FeatureCollection, LineString, Point } from 'geojson'
 
@@ -96,12 +102,27 @@ export function FeaturePanel() {
 
   if (!moduleConfig || !ftConfig) return null
 
-  // Condition badge from the feature's condition field
+  // Condition badge from the feature's condition field.
+  //
+  // A Wartung's conditionField is `status`, which is 0/1 rather than an ISYBAU class,
+  // so it fell through conditionBadge to 'Unbekannt'. Tasks get their own wording, and
+  // anything genuinely unclassified shows no badge — a chip reading "Unbekannt" is
+  // less informative than no chip, and it sat next to every unsurveyed Schacht too.
+  const isTask = selectedFeatureType === 'wartung'
+  const isNetworkObject = selectedFeatureType === 'schacht' || selectedFeatureType === 'haltung'
   const conditionValue = feature
     ? (feature[ftConfig.conditionField ?? ''] as number | undefined)
     : undefined
-  const badge    = conditionBadge(conditionValue)
-  const color    = conditionValue ? (LEVEL_COLORS[conditionValue] ?? ftConfig.color) : ftConfig.color
+  const badge = isTask
+    ? (Number(conditionValue) === 1
+        ? { label: 'fertig',         color: '#16a34a' }
+        : { label: 'in Bearbeitung', color: '#e60000' })
+    : conditionBadge(conditionValue)
+  const showBadge = isTask || badge.label !== 'Unbekannt'
+  const color = isTask
+    // A task's colour is its sub-layer's, so the mini-map pin matches the map pin.
+    ? taskColor(feature?.typ, feature?.status)
+    : (conditionValue ? (LEVEL_COLORS[conditionValue] ?? ftConfig.color) : ftConfig.color)
 
   const visibleTabs = getTabsForFeature(selectedModule!, selectedFeatureType!)
   const currentTab  = visibleTabs.find(t => t.id === activeTab)?.id ?? visibleTabs[0]?.id
@@ -152,19 +173,29 @@ export function FeaturePanel() {
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5 min-w-0">
               <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0 border"
-                style={{ background: `${color}18`, borderColor: `${color}30` }}
+                className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 border"
+                style={{ background: `${color}18`, borderColor: `${color}30`, color }}
               >
-                {ftConfig.icon}
+                <ftConfig.icon className="h-5 w-5" />
               </div>
               <div className="min-w-0">
+                {/* A task has no designation of its own — objectLabel would fall all
+                    the way through to the row id, and a panel headed "-1" says nothing.
+                    It is named by what it is and what it is on, the way the original
+                    titles its dialog. */}
                 <p className="text-base font-bold text-ink truncate">
-                  {(feature?.bezeichnung as string) ?? selectedFeatureId}
+                  {isTask
+                    ? ((feature?.wartungsart as string) || (feature?.aufgabe as string) || ftConfig.label)
+                    : objectLabel(feature, selectedFeatureId!)}
                 </p>
-                <p className="text-sm text-ink-dim mt-0.5 truncate">{ftConfig.label}</p>
+                <p className="text-sm text-ink-dim mt-0.5 truncate">
+                  {isTask && feature?.objektname
+                    ? <>{ftConfig.label} · <span className="font-mono">{feature.objektname as string}</span></>
+                    : ftConfig.label}
+                </p>
               </div>
             </div>
-            <Badge label={badge.label} color={badge.color} className="flex-shrink-0" />
+            {showBadge && <Badge label={badge.label} color={badge.color} className="flex-shrink-0" />}
           </div>
         </div>
 
@@ -209,6 +240,9 @@ export function FeaturePanel() {
       {/* ── Right column: tabs + content + footer ────────────────────────── */}
       <div className="flex flex-col flex-1 min-h-0 min-w-0">
 
+        {/* A strip of one tab is a label pretending to be a control. Schacht and
+            Haltung have a single detail list, so it is not drawn for them. */}
+        {visibleTabs.length > 1 && (
         <div className="flex border-b border-border flex-shrink-0 overflow-x-auto bg-white">
           {visibleTabs.map(tab => (
             <button
@@ -225,6 +259,7 @@ export function FeaturePanel() {
             </button>
           ))}
         </div>
+        )}
 
         <div className="flex-1 overflow-y-auto p-4 md:p-6 min-h-0">
           {isLoading && (
@@ -246,9 +281,37 @@ export function FeaturePanel() {
           )}
         </div>
 
-        <div className="px-4 py-2.5 border-t border-border flex gap-2 flex-shrink-0 bg-white">
-          <Button variant="ghost" size="sm" onClick={() => selectFeature(null)}>✕ Schließen</Button>
-          <Button variant="ghost" size="sm">↗ Teilen</Button>
+        {/* Footer. A task is edited from here, reachable from all three of its tabs.
+            A network object gets the two things the original offers on it: raise a new
+            maintenance task, or open the datasheet. */}
+        <div className="flex flex-shrink-0 flex-wrap items-center gap-2 border-t border-border bg-white px-4 py-2.5">
+          {isTask && selectedFeatureId ? (
+            <TaskActions taskId={selectedFeatureId} />
+          ) : (
+            <Button variant="ghost" size="sm" onClick={() => selectFeature(null)}>✕ Schließen</Button>
+          )}
+          {isNetworkObject && (
+            <>
+              <div className="ml-auto flex items-center gap-2">
+                <AddTaskSheet
+                  objektName={objectLabel(feature, selectedFeatureId!)}
+                  objektTyp={ftConfig.label}
+                  objektId={selectedFeatureId!}
+                  featureType={selectedFeatureType as 'haltung' | 'schacht'}
+                  // The pin goes where the mini-map is already centred: the point
+                  // itself, or the midpoint of the line.
+                  position={mmProps && center[0] !== 0 ? center : null}
+                />
+                <Link
+                  href={`/datenblatt/?id=${selectedFeatureId}${selectedFeatureType === 'haltung' ? '&typ=haltung' : ''}`}
+                  className="flex items-center gap-1.5 rounded-xl bg-brand px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-hover"
+                >
+                  <FileText className="h-4 w-4" aria-hidden />
+                  Datenblatt
+                </Link>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </aside>
